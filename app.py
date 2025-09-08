@@ -174,7 +174,7 @@ def load_all_models_artifacts():
     return all_loaded_models
 
 # --- Main Streamlit App ---
-st.title("🌍🌡️📉 African Sickle Cell Mortality Risk Prediction")
+st.title("🌡️African Sickle Cell Mortality Risk Prediction")
 st.markdown("This application predicts monthly sickle cell mortality risk in various African regions based on climate factors and generates a 'Climate Impact Score' for proactive planning.")
 
 # Load all models once
