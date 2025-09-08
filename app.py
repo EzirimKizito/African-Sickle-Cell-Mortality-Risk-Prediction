@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-# import xgboost as xgb
+import xgboost as xgb
 import shap
 import joblib
 import matplotlib.pyplot as plt
