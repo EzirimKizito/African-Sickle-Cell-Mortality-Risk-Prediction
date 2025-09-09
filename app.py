@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +8,7 @@ import matplotlib.pyplot as plt
 import sklearn # To verify scikit-learn version
 
 # --- Configuration for Wide Layout ---
-st.set_page_config(layout="wide", page_title="African Sickle Cell Mortality Risk Prediction")
+st.set_page_config(layout="wide", page_title="African Sickle Cell Crises Prediction")
 
 # --- Assumed Universal Scikit-learn Version ---
 EXPECTED_SKLEARN_VERSION = "1.6.1"
@@ -174,14 +173,21 @@ def load_all_models_artifacts():
     return all_loaded_models
 
 # --- Main Streamlit App ---
-st.title("🌡️African Sickle Cell Mortality Risk Prediction")
-st.markdown("This application predicts monthly sickle cell mortality risk in various African regions based on climate factors and generates a 'Climate Impact Score' for proactive planning.")
+st.title("🌡️ Climate Impact on Sickle Cell Crises in Africa")
+st.markdown("This application predicts monthly sickle cell crises risk in various African regions based on climate factors and generates a 'Climate Impact Score' to understand the impact of climate on crises for proactive planning.")
 
 # Load all models once
 with st.spinner("Initializing application (loading all regional models and data)..."):
     ALL_MODELS_DATA = load_all_models_artifacts()
 
-st.sidebar.header("Select Region & Input Features")
+# Use columns for better layout
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.header("Prediction Controls")
+with col2:
+    st.header("Quick Stats")
+
+st.sidebar.header("📍 Select Region & Time Period")
 
 # Region Selection
 selected_region = st.sidebar.selectbox(
@@ -196,7 +202,6 @@ model = current_model_data["model"]
 explainer = current_model_data["explainer"]
 active_feature_cols = current_model_data["feature_cols"]
 
-
 # Month Selection
 month_numbers = list(range(1, 13))
 month_names = {
@@ -210,12 +215,21 @@ selected_month_number = st.sidebar.selectbox(
     key="month_selector" # Unique key for this widget
 )
 
+# Year Selection (for display only, not used in prediction)
+selected_year = st.sidebar.number_input(
+    "Year", 
+    min_value=2000, 
+    max_value=2030, 
+    value=2024,
+    key="year_selector"
+)
+
 # Derived cyclical features
 month_sin, month_cos = compute_month_cyclical_features(selected_month_number)
 
 user_inputs = {}
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Adjust Climate Features:**")
+st.sidebar.markdown("🌤️ **Adjust Climate Features:**")
 
 # Generate ALL possible input widgets, but disable/enable based on region
 all_feature_names_sorted = sorted([f for f in MASTER_FEATURE_SPECS.keys() if f not in ['month_sin', 'month_cos']])
@@ -271,15 +285,11 @@ input_df = pd.DataFrame([input_data_for_model], columns=active_feature_cols)
 
 
 st.sidebar.markdown("---")
-if st.sidebar.button("Predict Mortality & Climate Impact", key="predict_button"): # Unique key for button
-    st.subheader(f"Prediction Results for {selected_region}:")
+if st.sidebar.button("🔮 Predict Crises & Climate Impact", key="predict_button"): # Unique key for button
     try:
-        # Predict primary target (monthly mortality)
-        predicted_mortality = model.predict(input_df)[0]
-        predicted_mortality = np.round(np.clip(predicted_mortality, 0, None), 0)
-
-        st.markdown(f"### Predicted Monthly Sickle Cell Mortality: **{int(predicted_mortality)}**")
-        st.markdown("---")
+        # Predict primary target (monthly crises)
+        predicted_crises = model.predict(input_df)[0]
+        predicted_crises = np.round(np.clip(predicted_crises, 0, None), 0)
 
         # Calculate SHAP values for the current prediction to get the climate score
         shap_values_obj = explainer(input_df) 
@@ -288,34 +298,39 @@ if st.sidebar.button("Predict Mortality & Climate Impact", key="predict_button")
         raw_climate_impact_sum = sum(shap_values_obj.values[0])
         climate_score = np.round(np.clip(raw_climate_impact_sum, 0, None), 0)
 
-        st.markdown(f"### Derived Climate Impact Score: **{int(climate_score)}**")
+        # Display results with better UI using metrics and columns
+        st.subheader(f"📊 Prediction Results for {month_names[selected_month_number]} {selected_year} in {selected_region}:")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Predicted Sickle Cell Crises Rate", f"{int(predicted_crises)}")
+        with col2:
+            st.metric("Climate Impact Score", f"{int(climate_score)}")
 
         st.markdown("---")
 
-        st.subheader("Interpretation:")
+        st.subheader("💡 Interpretation:")
         st.markdown(f"""
-        *   **Predicted Mortality ({int(predicted_mortality)}):** This is the estimated number of sickle cell deaths for the specified month and climate conditions in **{selected_region}**, as predicted by the model.
-        *   **Climate Impact Score ({int(climate_score)}):** This score quantifies the overall *adverse* influence of the inputted climate conditions on the predicted mortality.
-            *   A **higher score** indicates that the climate factors are predicted to contribute more significantly to increased mortality risk for this specific prediction.
-            *   A **score of 0** suggests that, according to the model, the combined climate conditions are either neutral or predicted to have a beneficial impact (pushing mortality *below* the average baseline) during this period.
+        *   **Predicted Crises Rate ({int(predicted_crises)}):** This is the estimated sickle cell crises rate for {month_names[selected_month_number]} {selected_year} under the specified climate conditions in **{selected_region}**, as predicted by the model.
+        *   **Climate Impact Score ({int(climate_score)}):** This score quantifies the overall *adverse* influence of the inputted climate conditions on the predicted crises rate.
+            *   A **higher score** indicates that the climate factors are predicted to contribute more significantly to increased crises risk for this specific prediction.
+            *   A **score of 0** suggests that, according to the model, the combined climate conditions are either neutral or predicted to have a beneficial impact (pushing crises *below* the average baseline) during this period.
         """)
 
-        st.subheader("Feature Contribution (SHAP Plot):")
-
-        # For a single prediction waterfall plot - this is instance specific
-        st.write("#### Individual Prediction Waterfall Plot")
-        fig_waterfall, ax_waterfall = plt.subplots(figsize=(10, 6))
-        # shap_values_obj[0] is the Explanation object for the first (and only) instance in input_df
-        shap.plots.waterfall(shap_values_obj[0], max_display=10, show=False)
-        st.pyplot(fig_waterfall)
-        st.caption(f"Waterfall plot showing how each feature pushes the prediction from the base value to the final predicted mortality for the *specific inputs entered for {selected_region}*.")
+        with st.expander("📈 Feature Contribution (SHAP Plot)"):
+            st.write("#### Individual Prediction Waterfall Plot")
+            fig_waterfall, ax_waterfall = plt.subplots(figsize=(12, 8))
+            # shap_values_obj[0] is the Explanation object for the first (and only) instance in input_df
+            shap.plots.waterfall(shap_values_obj[0], max_display=10, show=False)
+            st.pyplot(fig_waterfall)
+            st.caption(f"Waterfall plot showing how each feature pushes the prediction from the base value to the final predicted crises rate for the *specific inputs entered for {selected_region}*.")
 
     except Exception as e:
         st.error(f"An error occurred during prediction: {e}")
         st.info("Please ensure all input values are reasonable for the selected region and the model artifacts are loaded correctly.")
 
 st.markdown("---")
-st.markdown("### About the Models")
-st.markdown(f"""
-These models are specifically trained for each selected **African region**. They utilize various climate indicators, including temperature, precipitation, and aerosol optical depth, along with their lagged and rolling average values, to predict monthly sickle cell mortality. The 'Climate Impact Score' is derived using SHAP values to explain the models' predictions, providing insight into the overall influence of climate factors.
-""")
+with st.expander("ℹ️ About the Models"):
+    st.markdown(f"""
+    These models are specifically trained for each selected **African region**. We utilized various climate indicators, including temperature, precipitation, and aerosol optical depth, along with their lagged and rolling average values, to predict monthly sickle cell crises. The 'Climate Impact Score' is derived using SHAP values to explain the models' predictions, providing insight into the overall influence of climate factors on crises.
+    """)
